@@ -7,6 +7,10 @@ this drawing.
 
 ## Diagram
 
+![Complete high-current path](../figures/module_04/high_current_path.png)
+
+Vector source: `docs/figures/module_04/high_current_path.svg`. Text version:
+
 Solid lines (`│ ─`) carry high current: 18 AWG stranded copper.
 Dotted lines (`┊ ┈`) are low-current logic wiring and are not part of the high-current path.
 
@@ -56,7 +60,7 @@ matter what the Arduino commands.
 
 | Item | Value / what to show | Verified today? |
 | --- | --- | --- |
-| Wire gauge | 18 AWG stranded Cu on all 6 high-current wires: V+→B+, V−→B−, M+→switch, switch→TEC+, TEC−→M−, plus both switch leads (spade crimps) | ☐ |
+| Wire gauge | 18 AWG stranded Cu on all 5 high-current wires: V+→B+, V−→B−, M+→switch, switch→TEC+, TEC−→M− (the two switch wires end in the spade crimps) | ☐ |
 | Supply polarity | V+ → B+, V− → B− | ☐ |
 | TEC polarity | M+ → (switch) → TEC+; TEC− → M− | ☐ |
 | Spade crimps | Both female spades on the thermal switch are secure (tug test) | ☐ |
