@@ -64,9 +64,8 @@ const float TEMP_LIMIT_C = 60.0;
 //   COOL_ACTIVE_PIN = 10
 // If your experiment showed the opposite, swap these two values.
 //
-// Module 4 check: the Module 3 notes record HEAT = PWM on pin 10, the
-// opposite of the values below. Confirm with the low-PWM heat/cool test
-// (the red PWM trace must mean the temperature rises) and swap if needed.
+// Module 4: confirmed in the TEC start-up test (red trace while heating,
+// blue while cooling). The Module 3 notes that said HEAT = pin 10 were wrong.
 const int HEAT_ACTIVE_PIN = 9;
 const int COOL_ACTIVE_PIN = 10;
 

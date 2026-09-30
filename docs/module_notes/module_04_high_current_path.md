@@ -69,7 +69,7 @@ matter what the Arduino commands.
 | Supply settings | 12 V, current limit 10 A (check the label on the side of the supply) | ☐ |
 | H-bridge outputs checked with TEC power off (Module 3) | Pins 9/10 checked with the scope, TEC power off | ☐ |
 | Logic ground | Arduino GND shared with H-bridge logic ground | ☐ |
-| Direction mapping | Heating = PWM on pin ___ ; Cooling = PWM on pin ___ (see note 2) | ☐ |
+| Direction mapping | Heating = PWM on pin 9 ; Cooling = PWM on pin 10 (confirmed in the TEC start-up test) | ☑ |
 
 ## Module 4 changes from Module 3
 
@@ -105,6 +105,16 @@ matter what the Arduino commands.
    and PWM stays 0 until you send a new command.
 7. Set `TEMP_LIMIT_C = 60.0`, upload again, and show the instructor the `60.00` start-up line.
 
+## TEC start-up test (low PWM)
+
+Room temperature 22.58 °C. Before the TEC was powered, the apparatus read 25.07 °C and was
+slowly falling toward room temperature.
+
+| Direction | PWM | Steady temperature | PWM trace colour | Target, with allowed error |
+| --- | --- | --- | --- | --- |
+| COOL | 80 | 9.8–9.9 °C | blue | 10 °C ± 1 °C: OK |
+| HEAT | 47 | 45.2 °C | red | 45 °C ± 2 °C: OK |
+
 ## Things to resolve before sign-off
 
 1. **Thermal-switch rating mismatch.** The Module 3 notes say the switch cuts off at
@@ -112,12 +122,10 @@ matter what the Arduino commands.
    stamped on the switch and write down the real value. Either way it is above the
    60 °C software limit, so the order of protection still holds: software limit
    (60 °C), then thermal switch.
-2. **Direction mapping is inconsistent in Module 3.** The Module 3 notes and README
-   say HEAT = PWM on **pin 10**, COOL = PWM on **pin 9**. But
-   `arduino/tec_python_control/tec_python_control.ino` has
-   `HEAT_ACTIVE_PIN = 9` and `COOL_ACTIVE_PIN = 10`. If the sketch is wrong, the GUI
-   will label heating as cooling, so the red and blue PWM traces will be swapped.
-   Settle this in the low-PWM heat/cool test after approval, and fix the constants.
+2. **Direction mapping: resolved.** The Module 3 notes say HEAT = PWM on pin 10, but the
+   sketch uses `HEAT_ACTIVE_PIN = 9` and `COOL_ACTIVE_PIN = 10`. The Module 4 start-up test
+   confirmed the sketch: the PWM trace is red while heating and blue while cooling. The
+   Module 3 notes were wrong; no constants were changed.
 3. **Baud rate.** The Module 3 README says 115200, but the sketch calls
    `Serial.begin(9600)`. The GUI uses 9600, so they match. The README is just out of date.
 4. **Serial port.** Module 3 recorded `/dev/cu.usbmodem1101` (macOS) and `COM4`
