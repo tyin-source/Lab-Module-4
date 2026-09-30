@@ -1,0 +1,11 @@
+direction,pwm,start_temperature_C,steady_temperature_C,time_waited_s,notes
+heat,0,,,,
+heat,,,,,~25% of heating max
+heat,,,,,~50% of heating max
+heat,,,,,~75% of heating max
+heat,,,,,heating max (45 +/- 2 C)
+cool,0,,,,
+cool,,,,,~25% of cooling max
+cool,,,,,~50% of cooling max
+cool,,,,,~75% of cooling max
+cool,,,,,cooling max (10 +/- 1 C)
