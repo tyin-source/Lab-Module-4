@@ -75,7 +75,7 @@ matter what the Arduino commands.
 
 | Item | Module 3 | Module 4 |
 | --- | --- | --- |
-| Thermistor divider external resistor (5 V to A0; thermistor from A0 to GND) | 100 kΩ | **0.825 kΩ = 825 Ω** (`SERIES_RESISTOR = 825.0`) |
+| Thermistor divider external resistor (5 V to A0; thermistor from A0 to GND) | 100 kΩ | **48.00 kΩ** (`SERIES_RESISTOR = 48000.0`) |
 | Raw readings averaged per temperature | 200 | 1000 (`ADC_SAMPLES`) |
 | Serial update interval | 0.2 s | about 1 s (one line per 1000-reading average) |
 | Software temperature limit | none | 60 °C (`TEMP_LIMIT_C`): above it, both H-bridge PWM outputs are set to 0 |
