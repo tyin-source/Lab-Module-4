@@ -1,18 +1,23 @@
-# Phys 39 Module 3 - Part 5
-# Manual-control GUI (display + manual commands)
+# Phys 39 Module 4 - Part 1
+# Manual-control GUI (display + manual commands) with safety-shutdown display
+# (based on the Module 3 Part 5 GUI)
 #
-# Arduino (Part 3 / Part 6) emits lines like:
-#   Temperature (C): 27.73, Time (s): 645.06, PWM: 120, Direction input: 1, Active PWM pin: 9, Heat/Cool: 1
+# Arduino emits lines like:
+#   Temperature (C): 27.73, Time (s): 645.06, PWM: 120, Direction input: 1, Active PWM pin: 9, Heat/Cool: 1, Safety shutdown: 0
+#
+# The trailing "Safety shutdown" field is optional, so Module 3 sketches that
+# do not print it still work (it is treated as 0).
 #
 # This program:
-#   - reads serial data and parses four fields (time, temperature, PWM, heat/cool)
-#   - prints ONLY those four fields to the terminal
+#   - reads serial data and parses five fields
+#     (time, temperature, PWM, heat/cool, safety shutdown)
+#   - prints those fields to the terminal
 #   - plots temperature vs Arduino time
 #   - plots PWM vs Arduino time: RED for HEAT, BLUE for COOL
-#   - shows live Temperature / PWM / Direction / Time
+#   - shows live Temperature / PWM / Direction / Time / Safety status
 #   - sends manual commands:  SET PWM <n> DIR HEAT
 #                             SET PWM <n> DIR COOL
-#   - saves CSV with columns: time_s, temperature_C, pwm, heat_cool
+#   - saves CSV with columns: time_s, temperature_C, pwm, heat_cool, safety_shutdown
 #   - does NOT do feedback control
 
 import sys
@@ -42,7 +47,7 @@ TEMP_Y_MAX = 45.0             # temperature y-axis upper limit (C)
 PWM_Y_MIN = 0.0               # PWM y-axis lower limit
 PWM_Y_MAX = 255.0             # PWM y-axis upper limit
 
-CSV_PATH = Path("data/module_03/part5_control_gui.csv")
+CSV_PATH = Path("data/module_04/part1_control_gui.csv")
 # ------------------------------------------------------------------
 
 
@@ -77,8 +82,8 @@ class SerialLink:
 # ------------------------------------------------------------------
 # READ SERIAL DATA: parser for one measurement line
 # ------------------------------------------------------------------
-# This regex matches the Part 3 Arduino output exactly.
-# It extracts Temperature, Time, PWM, and Heat/Cool.
+# This regex matches the Arduino measurement line.
+# It extracts Temperature, Time, PWM, Heat/Cool, and (optionally) Safety shutdown.
 # Direction input and Active PWM pin are matched but not used.
 MEAS_RE = re.compile(
     r"Temperature \(C\):\s*(?P<temp>-?\d+(?:\.\d+)?|nan)\s*,\s*"
@@ -87,11 +92,12 @@ MEAS_RE = re.compile(
     r"Direction input:\s*(?P<dir>[01])\s*,\s*"
     r"Active PWM pin:\s*(?P<pin>\d+)\s*,\s*"
     r"Heat/Cool:\s*(?P<hc>[01])"
+    r"(?:\s*,\s*Safety shutdown:\s*(?P<safety>[01]))?"
 )
 
 
 def parse_measurement(line: str):
-    """Return dict of the four extracted fields, or None if malformed."""
+    """Return dict of the extracted fields, or None if malformed."""
     m = MEAS_RE.search(line)
     if not m:
         return None
@@ -102,6 +108,7 @@ def parse_measurement(line: str):
         "temperature_C": float(m.group("temp")),
         "pwm": int(m.group("pwm")),
         "heat_cool": int(m.group("hc")),
+        "safety_shutdown": int(m.group("safety") or 0),
     }
 
 
@@ -140,7 +147,7 @@ class SerialReader(QtCore.QThread):
 class ControlGUI(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Part 5 - Manual TEC Control GUI")
+        self.setWindowTitle("Module 4 Part 1 - Manual TEC Control GUI")
 
         # ------- in-memory data -------
         self.data = deque()          # (time_s, temperature_C, pwm, heat_cool)
@@ -155,7 +162,7 @@ class ControlGUI(QtWidgets.QMainWindow):
         self.csv_path = CSV_PATH
         self.csv_path.parent.mkdir(parents=True, exist_ok=True)
         self.csv_file = open(self.csv_path, "w", newline="")
-        self.csv_file.write("time_s,temperature_C,pwm,heat_cool\n")
+        self.csv_file.write("time_s,temperature_C,pwm,heat_cool,safety_shutdown\n")
         self.csv_file.flush()
 
         # ------- build the UI -------
@@ -226,7 +233,9 @@ class ControlGUI(QtWidgets.QMainWindow):
         self.lbl_pwm = QtWidgets.QLabel("PWM: ---")
         self.lbl_dir = QtWidgets.QLabel("Direction: ---")
         self.lbl_time = QtWidgets.QLabel("Time: --- s")
-        for lbl in (self.lbl_temp, self.lbl_pwm, self.lbl_dir, self.lbl_time):
+        self.lbl_safety = QtWidgets.QLabel("Safety: ---")
+        for lbl in (self.lbl_temp, self.lbl_pwm, self.lbl_dir, self.lbl_time,
+                    self.lbl_safety):
             row2.addWidget(lbl)
         row2.addStretch(1)
         layout.addLayout(row2)
@@ -311,19 +320,26 @@ class ControlGUI(QtWidgets.QMainWindow):
     def on_line(self, line: str):
         parsed = parse_measurement(line)
         if parsed is None:
-            return  # ignore malformed lines
+            # Pass through any safety message from the Arduino; ignore other
+            # malformed lines.
+            if "SAFETY" in line.upper():
+                print(f"[arduino] {line}")
+            return
 
         t = parsed["time_s"]
         T = parsed["temperature_C"]
         pwm = parsed["pwm"]
         hc = parsed["heat_cool"]
+        safety = parsed["safety_shutdown"]
 
-        # Terminal output: only the four extracted fields
+        # Terminal output: only the extracted fields
         print(
             f"Temperature (C): {T:.2f}, "
             f"Time (s): {t:.2f}, "
             f"PWM: {pwm}, "
-            f"Heat/Cool: {hc}"
+            f"Heat/Cool: {hc}, "
+            f"Safety shutdown: {safety}"
+            + ("   <-- SAFETY SHUTDOWN ACTIVE" if safety else "")
         )
 
         # Store for the temperature plot and CSV
@@ -339,7 +355,7 @@ class ControlGUI(QtWidgets.QMainWindow):
             self.pwm_cool_ys.append(pwm)
 
         # Save one CSV row
-        self.csv_file.write(f"{t:.2f},{T:.3f},{pwm},{hc}\n")
+        self.csv_file.write(f"{t:.2f},{T:.3f},{pwm},{hc},{safety}\n")
         self.csv_file.flush()
 
         # Update the live labels
@@ -347,6 +363,14 @@ class ControlGUI(QtWidgets.QMainWindow):
         self.lbl_pwm.setText(f"PWM: {pwm}")
         self.lbl_dir.setText(f"Direction: {'HEAT' if hc == 1 else 'COOL'}")
         self.lbl_time.setText(f"Time: {t:.2f} s")
+        if safety:
+            self.lbl_safety.setText("SAFETY SHUTDOWN ACTIVE - PWM forced to 0")
+            self.lbl_safety.setStyleSheet(
+                "color: white; background-color: red; font-weight: bold; padding: 2px;"
+            )
+        else:
+            self.lbl_safety.setText("Safety: OK")
+            self.lbl_safety.setStyleSheet("")
 
     @QtCore.Slot(str)
     def on_serial_error(self, msg: str):
