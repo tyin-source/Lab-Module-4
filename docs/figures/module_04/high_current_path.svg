@@ -89,11 +89,12 @@
   <text x="140" y="536" text-anchor="middle" font-size="12">(not through H-bridge)</text>
 
   <!-- ARDUINO -->
-  <rect x="380" y="330" width="220" height="110" rx="6" fill="#e3f2fd" stroke="#1565c0" stroke-width="2" stroke-dasharray="6 4"/>
+  <rect x="380" y="330" width="220" height="122" rx="6" fill="#e3f2fd" stroke="#1565c0" stroke-width="2" stroke-dasharray="6 4"/>
   <text x="490" y="356" text-anchor="middle" font-weight="bold" fill="#1565c0">ARDUINO UNO</text>
   <text x="490" y="376" text-anchor="middle" font-size="12" fill="#1565c0">pins 9, 10 → H-bridge inputs</text>
   <text x="490" y="394" text-anchor="middle" font-size="12" fill="#1565c0">GND shared with H-bridge</text>
   <text x="490" y="412" text-anchor="middle" font-size="12" fill="#1565c0">A0 ← thermistor divider</text>
+  <text x="490" y="430" text-anchor="middle" font-size="12" fill="#1565c0">divider resistor: 48.00 kΩ</text>
   <line x1="450" y1="330" x2="450" y2="240" stroke="#1565c0" stroke-width="2" stroke-dasharray="6 4"/>
   <line x1="490" y1="330" x2="490" y2="240" stroke="#1565c0" stroke-width="2" stroke-dasharray="6 4"/>
   <line x1="530" y1="330" x2="530" y2="240" stroke="#1565c0" stroke-width="2" stroke-dasharray="6 4"/>

@@ -71,6 +71,12 @@ matter what the Arduino commands.
 | Logic ground | Arduino GND shared with H-bridge logic ground | ☐ |
 | Direction mapping | Heating = PWM on pin ___ ; Cooling = PWM on pin ___ (see note 2) | ☐ |
 
+## Module 4 changes from Module 3
+
+| Item | Module 3 | Module 4 |
+| --- | --- | --- |
+| Thermistor divider external resistor (5 V to A0; thermistor from A0 to GND) | 100 kΩ | **48.00 kΩ** (`SERIES_RESISTOR = 48000.0`) |
+
 ## Things to resolve before sign-off
 
 1. **Thermal-switch rating mismatch.** The Module 3 notes say the switch cuts off at
