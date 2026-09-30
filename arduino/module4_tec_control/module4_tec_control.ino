@@ -2,7 +2,7 @@
 // Arduino serial-command control sketch with software temperature limit
 // (based on the Module 3 Part 6 sketch, tec_python_control.ino)
 //
-// A0: thermistor divider, 48.00 kOhm external resistor (averaged)
+// A0: thermistor divider, 100 kOhm external resistor (averaged)
 // Pin 9 / Pin 10: H-bridge control signals
 // No trim pot, no pin 11 switch.
 //
@@ -29,11 +29,10 @@ const int HBRIDGE_PIN_2 = 10;
 const int ADC_SAMPLES = 1000;
 const unsigned long SAMPLE_INTERVAL_US = 1000;
 
-// Thermistor constants -- Module 2 values, except the external divider
-// resistor: Module 4 uses 48.00 kOhm (Module 3 used 100 kOhm).
+// Thermistor constants -- Module 2 values (100 kOhm external resistor).
 // adcToTemperatureC() assumes the Module 3 divider arrangement:
 // external resistor from 5 V to A0, thermistor from A0 to GND.
-const float SERIES_RESISTOR = 48000.0;
+const float SERIES_RESISTOR = 100000.0;
 const float NOMINAL_RESISTANCE = 100000.0;
 const float NOMINAL_TEMPERATURE_C = 25.0;
 const float BETA_COEFFICIENT = 4540.0;
