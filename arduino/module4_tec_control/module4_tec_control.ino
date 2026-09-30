@@ -1,5 +1,6 @@
-// Phys 39 Module 3 - Part 6
-// Arduino serial-command control sketch
+// Phys 39 Module 4 - Part 1
+// Arduino serial-command control sketch with software temperature limit
+// (based on the Module 3 Part 6 sketch, tec_python_control.ino)
 //
 // A0: thermistor divider, 48.00 kOhm external resistor (averaged)
 // Pin 9 / Pin 10: H-bridge control signals
@@ -9,29 +10,46 @@
 //   SET PWM 120 DIR HEAT
 //   SET PWM 45 DIR COOL
 //
-// Prints measurement lines:
-//   Temperature (C): 27.73, Time (s): 645.06, PWM: 120, Direction input: 1, Active PWM pin: 9, Heat/Cool: 1
+// Prints one measurement line about once per second:
+//   Temperature (C): 27.73, Time (s): 645.06, PWM: 120, Direction input: 1, Active PWM pin: 9, Heat/Cool: 1, Safety shutdown: 0
 //
 // Heat/Cool = 1 only for observed HEATING.
 // Heat/Cool = 0 only for observed COOLING.
+// Safety shutdown = 1 while the software temperature limit holds both
+// H-bridge PWM outputs at zero.
 // This is open-loop manual control. No feedback control.
 
 const int THERMISTOR_PIN = A0;
 const int HBRIDGE_PIN_1 = 9;
 const int HBRIDGE_PIN_2 = 10;
 
-const int ADC_SAMPLES = 200;
-const unsigned long PRINT_INTERVAL_MS = 200;
+// Module 2 measurement sequence: each temperature is calculated from the
+// average of 1000 raw ADC readings. One reading is taken every 1000 us, so
+// each average spans about 1 s and a new line prints about once a second.
+const int ADC_SAMPLES = 1000;
+const unsigned long SAMPLE_INTERVAL_US = 1000;
 
 // Thermistor constants -- Module 2 values, except the external divider
 // resistor: Module 4 uses 48.00 kOhm (Module 3 used 100 kOhm).
-// readTemperatureC() assumes the Module 3 divider arrangement:
+// adcToTemperatureC() assumes the Module 3 divider arrangement:
 // external resistor from 5 V to A0, thermistor from A0 to GND.
 const float SERIES_RESISTOR = 48000.0;
 const float NOMINAL_RESISTANCE = 100000.0;
 const float NOMINAL_TEMPERATURE_C = 25.0;
 const float BETA_COEFFICIENT = 4540.0;
 const float ADC_MAX = 1023.0;
+
+// ------------------------------------------------------------------
+// SOFTWARE TEMPERATURE LIMIT
+// ------------------------------------------------------------------
+// If the averaged temperature is above this limit, both H-bridge PWM
+// outputs are set to zero. The hardware thermal switch in series with the
+// TEC is the independent final protection.
+//
+// To verify: temporarily set this to 30.0, upload, warm the thermistor
+// above 30 C, and confirm "Safety shutdown: 1" with PWM 0. Then set it
+// back to 60.0 and upload again before showing the instructor.
+const float TEMP_LIMIT_C = 60.0;
 
 // ------------------------------------------------------------------
 // EXPERIMENTALLY VERIFIED PART 3 MAPPING
@@ -46,6 +64,10 @@ const float ADC_MAX = 1023.0;
 //   HEAT_ACTIVE_PIN = 9
 //   COOL_ACTIVE_PIN = 10
 // If your experiment showed the opposite, swap these two values.
+//
+// Module 4 check: the Module 3 notes record HEAT = PWM on pin 10, the
+// opposite of the values below. Confirm with the low-PWM heat/cool test
+// (the red PWM trace must mean the temperature rises) and swap if needed.
 const int HEAT_ACTIVE_PIN = 9;
 const int COOL_ACTIVE_PIN = 10;
 
@@ -54,26 +76,25 @@ const int COOL_ACTIVE_PIN = 10;
 // ------------------------------------------------------------------
 int currentPwm = 0;          // 0-255, starts at 0
 bool currentIsHeat = true;   // true = HEAT, false = COOL, starts as HEAT
+bool safetyShutdown = false; // true while the temperature limit holds PWM at 0
+
+float temperatureC = NAN;    // most recent averaged temperature
 
 unsigned long startTime;
-unsigned long lastPrint = 0;
+
+// Running sum for the 1000-reading average.
+unsigned long adcSum = 0;
+int adcCount = 0;
+unsigned long lastSampleUs = 0;
 
 // Serial line buffer for incoming commands.
 String commandBuffer = "";
 
 // ------------------------------------------------------------------
-// THERMISTOR MEASUREMENT (same as Part 2 / Part 3)
+// THERMISTOR MEASUREMENT (Module 2 sequence: average 1000 readings)
 // ------------------------------------------------------------------
-float readTemperatureC() {
-  long sum = 0;
-
-  for (int i = 0; i < ADC_SAMPLES; i++) {
-    sum += analogRead(THERMISTOR_PIN);
-    delayMicroseconds(200);
-  }
-
-  float adc = sum / (float)ADC_SAMPLES;
-
+// Convert an averaged ADC value to temperature (Beta equation).
+float adcToTemperatureC(float adc) {
   if (adc <= 0 || adc >= ADC_MAX) {
     return NAN;
   }
@@ -90,12 +111,43 @@ float readTemperatureC() {
   return steinhart;
 }
 
+// Take one raw ADC reading each time SAMPLE_INTERVAL_US has passed.
+// After ADC_SAMPLES readings, update temperatureC from their average and
+// return true. Spreading the readings across loop() instead of taking
+// them in one blocking burst keeps serial commands responsive while the
+// average builds up.
+bool takeSample() {
+  unsigned long nowUs = micros();
+  if (nowUs - lastSampleUs < SAMPLE_INTERVAL_US) {
+    return false;
+  }
+  lastSampleUs = nowUs;
+
+  adcSum += analogRead(THERMISTOR_PIN);
+  adcCount++;
+
+  if (adcCount < ADC_SAMPLES) {
+    return false;
+  }
+
+  temperatureC = adcToTemperatureC(adcSum / (float)ADC_SAMPLES);
+  adcSum = 0;
+  adcCount = 0;
+  return true;
+}
+
 // ------------------------------------------------------------------
 // SAFETY: apply PWM to the H-bridge
 // ------------------------------------------------------------------
 // Only one H-bridge input gets PWM at a time. The other is held LOW.
 // This prevents both inputs being active at once.
 void applyOutput() {
+  // Software temperature limit: never drive the TEC during a safety shutdown.
+  if (safetyShutdown) {
+    zeroOutput();
+    return;
+  }
+
   int pwmPin;
   int lowPin;
 
@@ -125,6 +177,44 @@ void zeroOutput() {
   digitalWrite(HBRIDGE_PIN_2, LOW);
   analogWrite(HBRIDGE_PIN_1, 0);
   analogWrite(HBRIDGE_PIN_2, 0);
+}
+
+// ------------------------------------------------------------------
+// SAFETY: software temperature limit
+// ------------------------------------------------------------------
+// Called every loop with the most recent averaged temperature.
+// Above TEMP_LIMIT_C (or with no valid reading), both H-bridge PWM
+// outputs are set to zero. zeroOutput() also clears the commanded PWM,
+// so the TEC does not restart by itself when the temperature falls
+// again: a new command from the GUI is required.
+void checkTemperatureLimit() {
+  bool overLimit = isnan(temperatureC) || temperatureC > TEMP_LIMIT_C;
+
+  if (overLimit) {
+    zeroOutput();
+
+    if (!safetyShutdown) {
+      safetyShutdown = true;
+      Serial.print("SAFETY SHUTDOWN ACTIVE: ");
+      if (isnan(temperatureC)) {
+        Serial.print("no valid temperature reading (check thermistor wiring)");
+      } else {
+        Serial.print("temperature ");
+        Serial.print(temperatureC, 2);
+        Serial.print(" C is above the ");
+        Serial.print(TEMP_LIMIT_C, 2);
+        Serial.print(" C limit");
+      }
+      Serial.println(". Both H-bridge PWM outputs set to 0.");
+    }
+  } else if (safetyShutdown) {
+    safetyShutdown = false;
+    Serial.print("SAFETY SHUTDOWN CLEARED: temperature ");
+    Serial.print(temperatureC, 2);
+    Serial.print(" C is back at or below the ");
+    Serial.print(TEMP_LIMIT_C, 2);
+    Serial.println(" C limit. PWM stays 0 until a new command is sent.");
+  }
 }
 
 // ------------------------------------------------------------------
@@ -212,11 +302,18 @@ void setup() {
   Serial.begin(9600);
 
   startTime = millis();
-  lastPrint = 0;
   commandBuffer.reserve(64);
 
-  Serial.println("Part 6 serial-command TEC control");
+  Serial.println("Module 4 serial-command TEC control");
   Serial.println("Commands: SET PWM <0-255> DIR HEAT | COOL");
+  Serial.print("SAFETY: software temperature limit (C): ");
+  Serial.println(TEMP_LIMIT_C, 2);
+
+  // Build the first 1000-reading average before accepting commands,
+  // so the safety check always has a measured temperature to test.
+  while (!takeSample()) {
+  }
+  checkTemperatureLimit();
 }
 
 // ------------------------------------------------------------------
@@ -245,24 +342,25 @@ void loop() {
     }
   }
 
-  // ---- print the measurement line on a timer ----
-  unsigned long now = millis();
+  // ---- take one thermistor reading (true when a new average is ready) ----
+  bool newTemperature = takeSample();
 
-  if (now - lastPrint >= PRINT_INTERVAL_MS) {
-    lastPrint = now;
+  // ---- safety: check the averaged temperature every loop ----
+  checkTemperatureLimit();
 
-    float tempC = readTemperatureC();
-    float elapsed = (now - startTime) / 1000.0;
+  // ---- print one measurement line per averaged temperature (about 1 s) ----
+  if (newTemperature) {
+    float elapsed = (millis() - startTime) / 1000.0;
 
     int activePin = currentIsHeat ? HEAT_ACTIVE_PIN : COOL_ACTIVE_PIN;
     int heatCool = currentIsHeat ? 1 : 0;
     int dirInput = currentIsHeat ? 1 : 0;
 
     Serial.print("Temperature (C): ");
-    if (isnan(tempC)) {
+    if (isnan(temperatureC)) {
       Serial.print("nan");
     } else {
-      Serial.print(tempC, 2);
+      Serial.print(temperatureC, 2);
     }
 
     Serial.print(", Time (s): ");
@@ -278,6 +376,9 @@ void loop() {
     Serial.print(activePin);
 
     Serial.print(", Heat/Cool: ");
-    Serial.println(heatCool);
+    Serial.print(heatCool);
+
+    Serial.print(", Safety shutdown: ");
+    Serial.println(safetyShutdown ? 1 : 0);
   }
 }

@@ -76,6 +76,34 @@ matter what the Arduino commands.
 | Item | Module 3 | Module 4 |
 | --- | --- | --- |
 | Thermistor divider external resistor (5 V to A0; thermistor from A0 to GND) | 100 kΩ | **48.00 kΩ** (`SERIES_RESISTOR = 48000.0`) |
+| Raw readings averaged per temperature | 200 | 1000 (`ADC_SAMPLES`) |
+| Serial update interval | 0.2 s | about 1 s (one line per 1000-reading average) |
+| Software temperature limit | none | 60 °C (`TEMP_LIMIT_C`): above it, both H-bridge PWM outputs are set to 0 |
+| Measurement line | ends at `Heat/Cool` | adds `, Safety shutdown: 0/1` |
+
+## Files and settings for the module notes
+
+| Item | Value |
+| --- | --- |
+| Arduino sketch | `arduino/module4_tec_control/module4_tec_control.ino` (9600 baud) |
+| Python GUI | `python/module4_control_gui.py` |
+| Serial port | ____ (the GUI is set to `COM5`; Module 3 used `COM4` / `/dev/cu.usbmodem1101`) |
+| Power-supply voltage | ____ V (Module 3 record: 12 V) |
+| Power-supply current limit | ____ A (Module 3 record: 10 A) |
+
+## Verifying the software temperature limit (TEC power still OFF)
+
+1. In the sketch, set `TEMP_LIMIT_C = 30.0` and upload. The GUI terminal shows
+   `SAFETY: software temperature limit (C): 30.00`.
+2. Set a nonzero PWM (for example 100) in the GUI so there is an output to shut off.
+3. Warm the thermistor with your fingers until the averaged temperature passes 30 °C.
+4. Confirm that the terminal prints `SAFETY SHUTDOWN ACTIVE ...`, the lines show `PWM: 0`
+   and `Safety shutdown: 1`, the GUI banner turns red, and the PWM trace drops to 0.
+   Optionally check that pins 9 and 10 both read 0 V.
+5. Move the PWM slider: the Arduino keeps `PWM: 0` while the shutdown is active.
+6. Let the thermistor cool below 30 °C: the terminal prints `SAFETY SHUTDOWN CLEARED ...`
+   and PWM stays 0 until you send a new command.
+7. Set `TEMP_LIMIT_C = 60.0`, upload again, and show the instructor the `60.00` start-up line.
 
 ## Things to resolve before sign-off
 
