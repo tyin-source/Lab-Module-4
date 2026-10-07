@@ -12,17 +12,20 @@
 #   - reads serial data and parses five fields
 #     (time, temperature, PWM, heat/cool, safety shutdown)
 #   - prints those fields to the terminal
-#   - plots temperature vs Arduino time
+#   - plots temperature vs Arduino time; the temperature axis autoscales to the
+#     visible window (1 C margin, at least 6 C span) on a white background
 #   - plots PWM vs Arduino time: RED for HEAT, BLUE for COOL
 #   - shows live Temperature / PWM / Direction / Time / Safety status
 #   - sends manual commands:  SET PWM <n> DIR HEAT
 #                             SET PWM <n> DIR COOL
-#   - saves CSV with columns: time_s, temperature_C, pwm, heat_cool, safety_shutdown
+#   - saves a new CSV per run (data/module_04/module4_run_<date>_<time>.csv) with
+#     columns: time_s, temperature_C, pwm, heat_cool, safety_shutdown
 #   - does NOT do feedback control
 
 import sys
 import re
 import threading
+import time
 from collections import deque
 from pathlib import Path
 
@@ -41,13 +44,14 @@ WINDOW_SECONDS = 60.0         # rolling window duration on the x-axis (s)
 PLOT_UPDATE_MS = 100          # how often the plots redraw (ms)
 SEND_DEBOUNCE_MS = 80         # wait after last change before sending a command
 
-TEMP_Y_MIN = 15.0             # temperature y-axis lower limit (C)
-TEMP_Y_MAX = 45.0             # temperature y-axis upper limit (C)
+TEMP_Y_MARGIN = 1.0           # temperature axis extends this far beyond the data (C)
+TEMP_Y_MIN_SPAN = 6.0         # smallest total temperature axis span (C)
 
 PWM_Y_MIN = 0.0               # PWM y-axis lower limit
 PWM_Y_MAX = 255.0             # PWM y-axis upper limit
 
-CSV_PATH = Path("data/module_04/part1_control_gui.csv")
+# One new CSV file per run, named by start time, so earlier runs are not overwritten.
+CSV_PATH = Path("data/module_04") / time.strftime("module4_run_%Y%m%d_%H%M%S.csv")
 # ------------------------------------------------------------------
 
 
@@ -244,9 +248,8 @@ class ControlGUI(QtWidgets.QMainWindow):
         self.temp_plot = pg.PlotWidget()
         self.temp_plot.setLabel("bottom", "Time (s)")
         self.temp_plot.setLabel("left", "Temperature (C)")
-        self.temp_plot.setYRange(TEMP_Y_MIN, TEMP_Y_MAX)
         self.temp_plot.showGrid(x=True, y=True, alpha=0.3)
-        self.temp_curve = self.temp_plot.plot(pen=pg.mkPen(width=2))
+        self.temp_curve = self.temp_plot.plot(pen=pg.mkPen("k", width=2))
         layout.addWidget(self.temp_plot, stretch=1)
 
         # --- PWM plot: red for HEAT, blue for COOL ---
@@ -344,6 +347,7 @@ class ControlGUI(QtWidgets.QMainWindow):
 
         # Store for the temperature plot and CSV
         self.data.append((t, T, pwm, hc))
+        self.autoscale_temperature_axis(t)
 
         # Store for the PWM plot
         self.pwm_xs.append(t)
@@ -375,6 +379,29 @@ class ControlGUI(QtWidgets.QMainWindow):
     @QtCore.Slot(str)
     def on_serial_error(self, msg: str):
         print(f"[serial error] {msg}")
+
+    # ---------------- temperature axis autoscaling ----------------
+    def autoscale_temperature_axis(self, t_latest: float):
+        # Called after every accepted temperature measurement.
+        # Only the samples inside the visible rolling time window count.
+        x_min = max(0.0, t_latest - WINDOW_SECONDS)
+        visible = [row[1] for row in self.data if row[0] >= x_min]
+        t_low = min(visible)
+        t_high = max(visible)
+
+        # Normally: 1 C below the lowest and 1 C above the highest temperature.
+        y_low = t_low - TEMP_Y_MARGIN
+        y_high = t_high + TEMP_Y_MARGIN
+
+        # If that span is smaller than 6 C, use a 6 C span centered on the data,
+        # so ordinary measurement noise does not fill the whole plot.
+        if y_high - y_low < TEMP_Y_MIN_SPAN:
+            center = (t_low + t_high) / 2
+            y_low = center - TEMP_Y_MIN_SPAN / 2
+            y_high = center + TEMP_Y_MIN_SPAN / 2
+
+        # padding=0: no extra automatic padding beyond what we chose.
+        self.temp_plot.setYRange(y_low, y_high, padding=0)
 
     # ---------------- plot updates ----------------
     def update_plots(self):
@@ -413,6 +440,8 @@ class ControlGUI(QtWidgets.QMainWindow):
 # ------------------------------------------------------------------
 def main():
     app = QtWidgets.QApplication(sys.argv)
+    # White plot background with black axes, so small temperature slopes are easy to see.
+    pg.setConfigOptions(background="w", foreground="k")
     window = ControlGUI()
     window.show()
     sys.exit(app.exec())
