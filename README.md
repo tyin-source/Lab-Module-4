@@ -7,6 +7,7 @@ compares the heating and cooling slopes with a TEC energy-balance model and the 
 It is open-loop control only; there is no feedback controller.
 
 ## Team: TEC 10
+Tianren
 
 ## Project Files
 
