@@ -25,10 +25,20 @@
 #   p_<YYYYmmdd-HHMMSS>_Tset<setpoint>_Kp<gain>.csv
 # columns:
 #   time_s, temperature_C, setpoint_C, Kp, error_C, u, pwm_cmd, dir_cmd,
-#   saturated, pwm_arduino, heat_cool, safety_shutdown
+#   saturated, pwm_arduino, heat_cool, safety_shutdown, control_on
 # pwm_cmd/dir_cmd are what Python sent after this temperature;
 # pwm_arduino/heat_cool are what the Arduino reported it was applying when it
 # printed this line (the previous command), so they lag by one line.
+#
+# To keep the whole transient (overshoot, undershoot, damping), each run file
+# starts with the last BASELINE_SECONDS of readings from BEFORE P control was
+# switched on (control_on = 0, u = 0, nothing sent), then every reading while
+# P control is on (control_on = 1) until it is stopped. Let each run go until
+# the temperature has clearly settled before pressing Stop.
+#
+# The Module 5 sketch stops the TEC if no command arrives for 3 s, so the GUI
+# sends a command after every reading in both modes (manual mode re-sends the
+# slider value).
 
 import sys
 import re
@@ -73,6 +83,7 @@ KP_MAX = 100.0                # largest Kp the GUI accepts (PWM counts per C)
 KP_DEFAULT = 0.5              # start small (see the gain plan in the module note)
 
 DATA_DIR = MODULE5_DATA_DIR
+BASELINE_SECONDS = 30         # readings before Start written to each run file
 # ------------------------------------------------------------------
 
 
@@ -201,6 +212,9 @@ class ControlGUI(QtWidgets.QMainWindow):
         self.run_kp = None
         self.csv_file = None
         self.csv_path = None
+        # Recent readings while P control is off (about one per second), so
+        # each run file starts with a baseline before the step.
+        self.baseline = deque(maxlen=BASELINE_SECONDS)
 
         # ------- in-memory data for the plots -------
         self.ts = deque()            # time (s)
@@ -390,18 +404,19 @@ class ControlGUI(QtWidgets.QMainWindow):
     def schedule_send(self):
         self.send_timer.start()
 
-    def send_manual_command(self):
+    def send_manual_command(self, echo: bool = True):
         # Manual commands are ignored while P control owns the output.
         if self.control_on:
             return
         pwm = self.pwm_slider.value()
         direction = self.dir_combo.currentText()
-        self.send_line(f"SET PWM {pwm} DIR {direction}")
+        self.send_line(f"SET PWM {pwm} DIR {direction}", echo)
 
-    def send_line(self, cmd: str):
+    def send_line(self, cmd: str, echo: bool = True):
         try:
             self.link.write_line(cmd)
-            print(f"[sent] {cmd}")
+            if echo:
+                print(f"[sent] {cmd}")
         except Exception as e:
             print(f"[send error] {e}")
 
@@ -424,8 +439,12 @@ class ControlGUI(QtWidgets.QMainWindow):
         self.csv_file = open(self.csv_path, "w", newline="")
         self.csv_file.write(
             "time_s,temperature_C,setpoint_C,Kp,error_C,u,pwm_cmd,dir_cmd,"
-            "saturated,pwm_arduino,heat_cool,safety_shutdown\n"
+            "saturated,pwm_arduino,heat_cool,safety_shutdown,control_on\n"
         )
+        for t, T, pwm_ard, hc, safety in self.baseline:
+            self.write_row(t, T, self.run_setpoint - T, 0.0, 0,
+                           "HEAT", False, pwm_ard, hc, safety, control_on=0)
+        self.baseline.clear()
         self.csv_file.flush()
 
         self.control_on = True
@@ -467,6 +486,14 @@ class ControlGUI(QtWidgets.QMainWindow):
         self.lbl_u.setText("u: ---")
         self.lbl_error.setText("e: --- C")
 
+    def write_row(self, t, T, e, u, pwm_cmd, direction, saturated,
+                  pwm_ard, hc, safety, control_on):
+        self.csv_file.write(
+            f"{t:.2f},{T:.3f},{self.run_setpoint:.2f},{self.run_kp:g},"
+            f"{e:.3f},{u:.3f},{pwm_cmd},{direction},{int(saturated)},"
+            f"{pwm_ard},{hc},{safety},{control_on}\n"
+        )
+
     # ---------------- one line received ----------------
     @QtCore.Slot(str)
     def on_line(self, line: str):
@@ -499,11 +526,8 @@ class ControlGUI(QtWidgets.QMainWindow):
             else:
                 self.send_line(f"SET PWM {pwm_cmd} DIR {direction}")
 
-            self.csv_file.write(
-                f"{t:.2f},{T:.3f},{self.run_setpoint:.2f},{self.run_kp:g},"
-                f"{e:.3f},{u:.3f},{pwm_cmd},{direction},{int(saturated)},"
-                f"{pwm_ard},{hc},{safety}\n"
-            )
+            self.write_row(t, T, e, u, pwm_cmd, direction, saturated,
+                           pwm_ard, hc, safety, control_on=1)
             self.csv_file.flush()
 
             self.lbl_error.setText(f"e: {e:+.2f} C")
@@ -520,6 +544,17 @@ class ControlGUI(QtWidgets.QMainWindow):
             if safety:
                 self.stop_control("Arduino safety shutdown")
         else:
+            self.baseline.append((t, T, pwm_ard, hc, safety))
+            if safety and self.pwm_slider.value() != 0:
+                # Keep the Module 4 behaviour: after a safety shutdown the
+                # TEC stays off until the user sets a new PWM.
+                self.pwm_slider.blockSignals(True)
+                self.pwm_slider.setValue(0)
+                self.pwm_slider.blockSignals(False)
+                self.pwm_edit.setText("0")
+            # Re-send the manual command once per reading so the Arduino's
+            # command timeout does not stop an open-loop run.
+            self.send_manual_command(echo=False)
             print(
                 f"Temperature (C): {T:.2f}, Time (s): {t:.2f}, PWM: {pwm_ard}, "
                 f"Heat/Cool: {hc}, Safety shutdown: {safety}"

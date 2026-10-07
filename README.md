@@ -38,8 +38,9 @@ P-only control computed in Python.
 6. Enter Tset and Kp, press **Start P control**; **Stop P control (PWM 0)** ends the
    run. Each run is saved to `data/module_05/`.
 7. Safety: PWM starts at 0; check the sign at low gain first; the GUI stops P
-   control when the Arduino reports a safety shutdown. Stop if the temperature
-   moves the wrong way or oscillations grow.
+   control when the Arduino reports a safety shutdown; the Arduino stops the TEC
+   if no command arrives for 3 s. Stop if the temperature moves the wrong way or
+   oscillations grow.
 
 Analysis (from the repository root):
 

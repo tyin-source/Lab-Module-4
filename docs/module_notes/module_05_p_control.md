@@ -21,12 +21,12 @@ keeps its independent 60 °C software limit.
 
 | Item | Value |
 | --- | --- |
-| Arduino sketch | `arduino/module5_p_control/module5_p_control.ino` (9600 baud). This is the Module 4 sketch with only the header comment and start-up banner changed. |
+| Arduino sketch | `arduino/module5_p_control/module5_p_control.ino` (9600 baud). This is the Module 4 sketch (same pins, thermistor constants, 1000-reading average, latched 60 °C limit, and serial format). The only addition is a 3 s command timeout. |
 | Python controller (GUI) | `python/module5_p_control_gui.py` (set `SERIAL_PORT` at the top) |
-| Control law | `p_control()` in `python/module5_p_control_gui.py`: **line 84** `e = t_set - temperature`, **line 85** `u = kp * e`; lines 89–92 convert $u$ to direction and clamped PWM |
+| Control law | `p_control()` in `python/module5_p_control_gui.py`: **line 95** `e = t_set - temperature`, **line 96** `u = kp * e`; lines 100–103 convert $u$ to direction and clamped PWM |
 | Module 4 susceptibility | `data/module_04/part4_steady_state.csv`, fitted by `python/module5_common.py` (same fits as `python/part4_temp_vs_pwm.py`) |
 | Gain plan | `python/module5_gain_plan.py` |
-| Run summary and strip charts | `python/module5_run_summary.py` → `data/module_05/p_runs_summary.csv`, `docs/figures/module_05/<run>.png` |
+| Run summary, transient, strip charts | `python/module5_run_summary.py` → `data/module_05/p_runs_summary.csv`, `docs/figures/module_05/<run>.png`, `docs/figures/module_05/transient_overlay_<part>.png` |
 | Droop plots | `python/module5_droop_plot.py` → `docs/figures/module_05/droop_vs_kp.png`, `fractional_droop_vs_L.png` |
 | Raw data | one CSV per P-control run: `data/module_05/p_<date-time>_Tset<T>_Kp<Kp>.csv` |
 | Serial port | ____ |
@@ -51,12 +51,21 @@ or derivative term. The safety constraints are not part of the control law:
 - If the Arduino reports `Safety shutdown: 1`, the GUI stops P control, sends
   `SET PWM 0 DIR HEAT`, and waits for you to start a new run.
 - **Stop P control (PWM 0)** and closing the window both send PWM 0.
+- **Command timeout (Arduino):** if no command arrives for 3 s while PWM > 0,
+  the Arduino sets both PWM outputs to 0 and prints `SAFETY: no command ...`.
+  This covers a Python crash, a frozen GUI, or an unplugged cable. The GUI sends
+  a command after every reading in both modes; manual mode re-sends the slider value.
 
 Run CSV columns: `time_s, temperature_C, setpoint_C, Kp, error_C, u, pwm_cmd,
-dir_cmd, saturated, pwm_arduino, heat_cool, safety_shutdown`. `pwm_cmd` and
-`dir_cmd` are what Python sent after that temperature. `pwm_arduino` and
-`heat_cool` are what the Arduino reported applying when it printed the line, so
-they lag one line behind.
+dir_cmd, saturated, pwm_arduino, heat_cool, safety_shutdown, control_on`.
+
+- `pwm_cmd` and `dir_cmd` are what Python sent after that temperature.
+- `pwm_arduino` and `heat_cool` are what the Arduino reported applying when it
+  printed the line, so they lag one line behind.
+- **Transient trace:** each file starts with up to 30 s of baseline readings from
+  before *Start* (`control_on = 0`). Every reading while P control is on follows
+  (`control_on = 1`). The file therefore holds the whole step response: start
+  temperature, rise, any overshoot and ringing, and the settled value.
 
 ## Safety boundary (check before every session)
 
@@ -64,6 +73,7 @@ they lag one line behind.
 | --- | --- |
 | Module 4 software temperature limit present: start-up line shows `SAFETY: software temperature limit (C): 60.00` | ☐ |
 | Software limit re-tested (set 30 °C, warm thermistor, see `Safety shutdown: 1`, set back to 60 °C) | ☐ |
+| Command timeout: start-up line shows `SAFETY: command timeout (s): 3.0`; with PWM > 0, closing the GUI stops the TEC within about 3 s | ☐ |
 | PWM starts at zero | ☐ |
 | GUI shows plausible temperature (close to room temperature) | ☐ |
 | Heat and cool have the correct sign (Part 2 sign test) | ☐ |
@@ -239,10 +249,49 @@ window's mean temperature, with 0.1 °C hysteresis. Frequency = 1/period.
 
 Highest gain tested: ____ PWM/°C. How it differs from the low-gain response: ____
 
-Representative strip charts:
+### Transient response: overshoot at high gain, no overshoot at low gain
 
-- Low gain: `docs/figures/module_05/____.png`
-- High gain: `docs/figures/module_05/____.png`
+The instructor wants to see the time dependence, not only the final values.
+Record every run from rest and let it run until it has clearly settled. The run
+file holds the 30 s baseline plus the whole response. The run summary measures,
+from the moment P control is switched on ($t = 0$):
+
+| Quantity | Definition |
+| --- | --- |
+| $T_0$ | mean of the baseline before $t = 0$ |
+| Normalised response | $y = (T - T_0)/(T_{\mathrm{ss}} - T_0)$: 0 at the start, 1 at the final (drooped) value |
+| Rise time | time from $y = 0.1$ to $y = 0.9$; $\tau_{63}$ = time to $y = 0.632$ |
+| Overshoot | how far the first peak goes past $T_{\mathrm{ss}}$ (°C and % of the step), and whether it also went past $T_{\mathrm{set}}$ |
+| Undershoot | after an overshoot, how far the next dip falls back below $T_{\mathrm{ss}}$ (%) |
+| Damping ratio | from the first overshoot $M$: $\zeta = -\ln M/\sqrt{\pi^2 + \ln^2 M}$; also from the decay of successive peaks. The damped period is the time between successive maxima. |
+| Settling time | last time $T$ is outside $T_{\mathrm{ss}} \pm$ band, band $= \max(5\,\%$ of the step, 3 × noise sd$)$ |
+
+What to expect:
+
+- **Low gain** ($L \lesssim 1$): $T$ rises monotonically, like the first-order
+  $\theta(0)e^{-t/\tau_{\mathrm{cl}}}$, and stops short of $T_{\mathrm{set}}$ by the
+  droop. There is no overshoot.
+- **Higher gain:** the rise is faster ($\tau_{\mathrm{cl}} = C/(H + P_uK_p)$ shrinks).
+  If there is thermal delay between the TEC and the thermistor, the temperature
+  can overshoot $T_{\mathrm{ss}}$ (possibly even $T_{\mathrm{set}}$), dip back
+  below it (undershoot), and ring down. Lower $\zeta$ means more ringing.
+
+The one-lump model cannot overshoot, so any overshoot measures the physics it leaves out.
+
+```bash
+python python/module5_run_summary.py <low-gain runs> <high-gain runs> --part droop --t-amb <Tamb>
+```
+
+| $K_p$ (PWM/°C) | $L$ | Response | Rise 10–90 % (s) | Overshoot (°C / %) | Past $T_{\mathrm{set}}$? | Undershoot (%) | $\zeta$ (overshoot / decay) | Damped period (s) | Settling time (s) | Run file |
+| ---: | ---: | --- | ---: | ---: | --- | ---: | --- | ---: | ---: | --- |
+|  |  |  |  |  |  |  |  |  |  |  |
+
+Representative strip charts (each one marks the baseline, $t = 0$, peaks and dips,
+the $T_{\mathrm{ss}}$ band, and the settling time):
+
+- Low gain (no overshoot): `docs/figures/module_05/____.png`
+- High gain (overshoot / ringing): `docs/figures/module_05/____.png`
+- All gains overlaid, raw and normalised: `docs/figures/module_05/transient_overlay_<part>.png`
 
 ## Part 6: Interpretation (for A3)
 
@@ -375,7 +424,7 @@ Observed: oscillations ____ (did / did not) appear up to $K_p$ = ____ PWM/°C, b
 | Droop table and high-gain table | Parts 3 and 5 | ☐ |
 | Measured and predicted droop on one graph | `docs/figures/module_05/droop_vs_kp.png` | ☐ |
 | Derivation linking Part 4 and the one-lump model | Part 6 | ☑ |
-| Low- and high-gain strip charts | `docs/figures/module_05/` | ☐ |
+| Low- and high-gain strip charts with the full transient (overshoot / no overshoot) | `docs/figures/module_05/` + transient table | ☐ |
 | Exact controller, sketch, raw-data filenames | Files table + run tables | ☐ (run files) |
 | Explanation of droop and of oscillations (or none) | Part 6 | ☐ (oscillation result) |
 

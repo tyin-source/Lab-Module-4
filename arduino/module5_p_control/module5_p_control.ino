@@ -1,7 +1,7 @@
 // Phys 39 Module 5 - P-only temperature control (Arduino side)
 // Arduino serial-command control sketch with software temperature limit
-// (copied from the Module 4 sketch, module4_tec_control.ino; only this
-// header and the start-up banner changed)
+// (copied from the Module 4 sketch, module4_tec_control.ino; the only
+// changes are this header, the start-up banner, and the command timeout below)
 //
 // In Module 5 the feedback law u = Kp (Tset - T) is calculated in Python
 // (python/module5_p_control_gui.py). The Arduino does NOT calculate any
@@ -58,6 +58,16 @@ const float ADC_MAX = 1023.0;
 const float TEMP_LIMIT_C = 60.0;
 
 // ------------------------------------------------------------------
+// COMMAND TIMEOUT (added in Module 5)
+// ------------------------------------------------------------------
+// The Python GUI sends a command after every measurement line (about once
+// per second), in both P-control and manual mode. If no command arrives for
+// COMMAND_TIMEOUT_MS while PWM is nonzero (Python crashed, GUI frozen, USB
+// unplugged), both H-bridge PWM outputs are set to zero. A new command is
+// needed to drive the TEC again.
+const unsigned long COMMAND_TIMEOUT_MS = 3000;
+
+// ------------------------------------------------------------------
 // EXPERIMENTALLY VERIFIED PART 3 MAPPING
 // ------------------------------------------------------------------
 // Set these two flags after your Part 3 experiment.
@@ -86,6 +96,7 @@ bool safetyShutdown = false; // true while the temperature limit holds PWM at 0
 float temperatureC = NAN;    // most recent averaged temperature
 
 unsigned long startTime;
+unsigned long lastCommandMs = 0;   // millis() of the last received command line
 
 // Running sum for the 1000-reading average.
 unsigned long adcSum = 0;
@@ -239,6 +250,8 @@ void handleCommand(String line) {
     return;
   }
 
+  lastCommandMs = millis();
+
   // Tokenize by spaces.
   // Expected tokens:
   //   0: SET
@@ -313,6 +326,8 @@ void setup() {
   Serial.println("Commands: SET PWM <0-255> DIR HEAT | COOL");
   Serial.print("SAFETY: software temperature limit (C): ");
   Serial.println(TEMP_LIMIT_C, 2);
+  Serial.print("SAFETY: command timeout (s): ");
+  Serial.println(COMMAND_TIMEOUT_MS / 1000.0, 1);
 
   // Build the first 1000-reading average before accepting commands,
   // so the safety check always has a measured temperature to test.
@@ -352,6 +367,14 @@ void loop() {
 
   // ---- safety: check the averaged temperature every loop ----
   checkTemperatureLimit();
+
+  // ---- safety: stop the TEC if Python stops sending commands ----
+  if (currentPwm > 0 && millis() - lastCommandMs > COMMAND_TIMEOUT_MS) {
+    zeroOutput();
+    Serial.print("SAFETY: no command for ");
+    Serial.print(COMMAND_TIMEOUT_MS / 1000.0, 1);
+    Serial.println(" s. Both H-bridge PWM outputs set to 0.");
+  }
 
   // ---- print one measurement line per averaged temperature (about 1 s) ----
   if (newTemperature) {
