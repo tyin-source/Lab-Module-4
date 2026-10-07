@@ -1,0 +1,10 @@
+signed_pwm,direction,steady_temperature_C
+-80,COOL,9.83
+-60,COOL,13.25
+-40,COOL,16.82
+-20,COOL,20.30
+0,OFF,23.48
+12,HEAT,28.90
+24,HEAT,35.35
+35,HEAT,40.40
+47,HEAT,46.10

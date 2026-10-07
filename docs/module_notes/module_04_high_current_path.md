@@ -115,6 +115,39 @@ slowly falling toward room temperature.
 | COOL | 80 | 9.8–9.9 °C | blue | 10 °C ± 1 °C: OK |
 | HEAT | 47 | 45.2 °C | red | 45 °C ± 2 °C: OK |
 
+## Part 4: Steady-state temperature vs PWM
+
+Data: `data/module_04/part4_steady_state.csv`. Script: `python/part4_temp_vs_pwm.py`.
+Signed PWM: positive = HEAT, negative = COOL.
+
+![Temperature vs signed PWM](../figures/module_04/part4_temp_vs_signed_pwm.png)
+
+| Direction | Signed PWM | Steady temperature (°C) |
+| --- | --- | --- |
+| COOL | −80 / −60 / −40 / −20 | 9.83 / 13.25 / 16.82 / 20.30 |
+| Off | 0 | 23.48 |
+| HEAT | 12 / 24 / 35 / 47 | 28.90 / 35.35 / 40.40 / 46.10 |
+
+Linear fits: m_h = 0.485 °C/count (heating), m_c = 0.172 °C/count (cooling), r = m_h / m_c ≈ 2.8.
+Both directions are close to linear. Heating is stronger because Joule heating (∝ I²) adds to
+the Peltier heat when heating and opposes it when cooling.
+
+These runs were on a different day from the start-up test (9/30: room 22.58 °C; COOL PWM 80 →
+9.93 °C, HEAT PWM 47 → 45.24 °C), so the end points differ slightly because of the different
+room temperature and thermal drift.
+
+### Wiring fault found during the measurements
+
+During the cooling measurements, the temperature reading became unstable and drifted, and the PWM
+drive to the TEC was intermittent. We first suspected a short circuit. Because the problem was most
+obvious in the cooling direction, we checked the logic wiring on the H-bridge's left side. Wiggling
+the wires one at a time while running at low PWM showed that both the L_EN wire and the LPWM wire
+(Arduino pin 10) were loose. A loose L_EN intermittently disables the left half-bridge, which
+interrupts TEC current in both directions. A loose LPWM interrupts only the cooling PWM, because
+LPWM is held LOW during heating anyway. Together they explain why the cooling direction was affected
+most. After both wires were reseated, the cooling response was stable and the measurements were
+repeated. The fault was located with this wiggle test, not confirmed with an oscilloscope.
+
 ## Things to resolve before sign-off
 
 1. **Thermal-switch rating mismatch.** The Module 3 notes say the switch cuts off at
