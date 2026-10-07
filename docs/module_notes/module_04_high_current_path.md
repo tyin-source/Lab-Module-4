@@ -161,19 +161,25 @@ the steady temperature in the row above. Both directions start from the same zer
 
 | Direction | PWM | Start Temperature (°C) | Steady Temperature (°C) | Time Waited (s) | Notes |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Heat | 0 | 23.48 | 23.48 | ____ | zero-PWM reference |
-| Heat | 12 | 23.48 | 28.90 | ____ | |
-| Heat | 24 | 28.90 | 35.35 | ____ | |
-| Heat | 35 | 35.35 | 40.40 | ____ | |
-| Heat | 47 | 40.40 | 46.10 | ____ | |
-| Cool | 0 | 23.48 | 23.48 | ____ | zero-PWM reference |
-| Cool | 20 | 23.48 | 20.30 | ____ | |
-| Cool | 40 | 20.30 | 16.82 | ____ | |
-| Cool | 60 | 16.82 | 13.25 | ____ | |
-| Cool | 80 | 13.25 | 9.83 | ____ | repeated after the loose L_EN / LPWM wires were reseated |
+| Heat | 0 | 23.48 | 23.48 | 174 | zero-PWM reference |
+| Heat | 12 | 23.48 | 28.90 | 725 |  |
+| Heat | 24 | 28.90 | 35.35 | 1400 |  |
+| Heat | 35 | 35.35 | 40.40 | 448 |  |
+| Heat | 47 | 40.40 | 46.10 | 494 |  |
+| Cool | 0 | 23.48 | 23.48 | 174 | zero-PWM reference |
+| Cool | 20 | 23.48 | 20.30 | 372 |  |
+| Cool | 40 | 20.30 | 16.82 | 400 |  |
+| Cool | 60 | 16.82 | 13.25 | 528 |  |
+| Cool | 80 | 13.25 | 9.83 | 370 | repeated after the loose L_EN / LPWM wires were reseated |
 
-Time constant τ = ____ s (from `steady_state_analysis.py`), so 3 τ = ____ s.
-Fill in the waiting times and τ from the run CSV.
+Both directions share the same zero-PWM measurement (174 s at PWM 0).
+
+The waits were set by watching the strip chart until the steady-state rule was met,
+not by a fixed timer, so they vary from 370 s to 1400 s. τ was not fitted separately for each
+step. Every step met the rule (about 3 τ plus a final minute with no drift beyond the noise)
+within its recorded wait, so the shortest waits (370–372 s) put an upper limit on τ:
+3 τ + 60 s ≤ 370 s gives τ ≲ 100 s. To get τ directly, run
+`steady_state_analysis.py` on a saved run CSV.
 
 ### Why the endpoint test and the step series differ slightly
 
