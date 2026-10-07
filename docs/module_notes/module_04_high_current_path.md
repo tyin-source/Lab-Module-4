@@ -140,7 +140,8 @@ HEAT 0 / 12 / 24 / 35 / 47 and COOL 0 / 20 / 40 / 60 / 80.
 The lab's rule: estimate the time constant τ from a PWM step, wait about 3 τ (95 % of the change
 is then complete), then watch the trace for one more minute. The temperature counts as steady when
 its net drift over that minute is no larger than the ordinary short-term noise. The GUI's
-autoscaled temperature axis (at least 6 °C span) makes a slow drift visible on the strip chart.
+autoscaled temperature axis (at least 6 °C span) was added after these measurements; it makes a
+slow drift easier to see in later runs.
 
 `python/steady_state_analysis.py` applies the same rule to a saved run CSV:
 
@@ -221,7 +222,7 @@ not affect the results:
 - **The differences are small:** 0.10 °C (cool) and 0.86 °C (heat), about what a ~1 °C change
   in room temperature produces.
 
-
+## Part 4: Steady-state temperature vs PWM
 
 Data: `data/module_04/part4_steady_state.csv`. Script: `python/part4_temp_vs_pwm.py`.
 Signed PWM: positive = HEAT, negative = COOL.
@@ -238,9 +239,8 @@ Linear fits: m_h = 0.485 °C/count (heating), m_c = 0.172 °C/count (cooling), r
 Both directions are close to linear. Heating is stronger because Joule heating (∝ I²) adds to
 the Peltier heat when heating and opposes it when cooling.
 
-These runs were on a different day from the start-up test (9/30: room 22.58 °C; COOL PWM 80 →
-9.93 °C, HEAT PWM 47 → 45.24 °C), so the end points differ slightly because of the different
-room temperature and thermal drift.
+These runs were on a different day from the 9/30 endpoint test, so the end points differ
+slightly; see "Why the endpoint test and the step series differ slightly" in Part 3.
 
 ### Wiring fault found during the measurements
 
