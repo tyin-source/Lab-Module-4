@@ -8,3 +8,6 @@ a2/*.fls
 a2/*.fdb_latexmk
 a2/*.out
 a2/*.synctex.gz
+a2/*.bbl
+a2/*.blg
+a2/*Notes.bib
