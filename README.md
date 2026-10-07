@@ -6,6 +6,8 @@ the hardware thermal switch, measures the steady-state temperature at signed PWM
 compares the heating and cooling slopes with a TEC energy-balance model and the Laird data sheet.
 It is open-loop control only; there is no feedback controller.
 
+## Team: TEC 10
+
 ## Project Files
 
 | File | Purpose |
