@@ -15,8 +15,19 @@ from pathlib import Path
 
 import numpy as np
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+# In the repository the scripts live in <repo>/python/, so data/ and docs/ are
+# one level up. If the scripts were copied into a single folder, use that
+# folder instead (data/ and docs/figures/ are then created next to them).
+_HERE = Path(__file__).resolve().parent
+REPO_ROOT = _HERE.parent if _HERE.name == "python" else _HERE
 MODULE4_DATA = REPO_ROOT / "data" / "module_04" / "part4_steady_state.csv"
+
+# Copy of data/module_04/part4_steady_state.csv (signed PWM, steady T in C),
+# used only if that file is not found next to the scripts.
+MODULE4_FALLBACK = [
+    (-80, 9.83), (-60, 13.25), (-40, 16.82), (-20, 20.30), (0, 23.48),
+    (12, 28.90), (24, 35.35), (35, 40.40), (47, 46.10),
+]
 MODULE5_DATA_DIR = REPO_ROOT / "data" / "module_05"
 MODULE5_FIG_DIR = REPO_ROOT / "docs" / "figures" / "module_05"
 
@@ -29,10 +40,15 @@ def module4_susceptibility(path: Path = MODULE4_DATA):
     """
     signed_pwm = []
     temp = []
-    with open(path, newline="") as f:
-        for row in csv.DictReader(f):
-            signed_pwm.append(float(row["signed_pwm"]))
-            temp.append(float(row["steady_temperature_C"]))
+    if Path(path).exists():
+        with open(path, newline="") as f:
+            for row in csv.DictReader(f):
+                signed_pwm.append(float(row["signed_pwm"]))
+                temp.append(float(row["steady_temperature_C"]))
+    else:
+        for pwm, t in MODULE4_FALLBACK:
+            signed_pwm.append(float(pwm))
+            temp.append(t)
     signed_pwm = np.array(signed_pwm)
     temp = np.array(temp)
 

@@ -499,8 +499,8 @@ class ControlGUI(QtWidgets.QMainWindow):
     def on_line(self, line: str):
         parsed = parse_measurement(line)
         if parsed is None:
-            if "SAFETY" in line.upper():
-                print(f"[arduino] {line}")
+            # Show every non-measurement line (start-up banner, SAFETY messages).
+            print(f"[arduino] {line}")
             return
 
         t = parsed["time_s"]
