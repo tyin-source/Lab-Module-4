@@ -160,13 +160,14 @@ After each PWM step we waited about 3 τ, then watched the trace for one more mi
 temperature was recorded as steady when it stayed within **±0.1 °C** for that whole minute.
 ±0.1 °C is about the size of the trace's ordinary short-term noise with 1000-reading averaging, so
 this is a concrete form of the lab's rule (net drift over the minute no larger than the noise). If
-the trace drifted or fluctuated outside ±0.1 °C, we kept waiting and checked another minute.
+the trace drifted or fluctuated outside ±0.1 °C, we kept waiting and checked another minute; if it
+kept fluctuating (HEAT 24, first attempt), the step was repeated.
 
 Figure caption used in A2:
 
 > Steady state: after each PWM step we waited about three time constants (τ ≲ 100 s), then
 > watched the strip chart for one more minute. A temperature was recorded as steady when it stayed
-> within ±0.1 °C (about the normal measurement noise) for that whole minute. Waits were 370–1400 s.
+> within ±0.1 °C (about the normal measurement noise) for that whole minute. Waits were 370–725 s.
 
 ### Data table
 
@@ -177,7 +178,7 @@ the steady temperature in the row above. Both directions start from the same zer
 | --- | ---: | ---: | ---: | ---: | --- |
 | Heat | 0 | 23.48 | 23.48 | 174 | zero-PWM reference |
 | Heat | 12 | 23.48 | 28.90 | 725 |  |
-| Heat | 24 | 28.90 | 35.35 | 1400 | temperature fluctuated, so the ±0.1 °C check was repeated until it held |
+| Heat | 24 | 28.90 | 35.35 | 530 | first attempt kept fluctuating outside ±0.1 °C for 1400 s; the step was retested and reached steady state in about 530 s |
 | Heat | 35 | 35.35 | 40.40 | 448 |  |
 | Heat | 47 | 40.40 | 46.10 | 494 |  |
 | Cool | 0 | 23.48 | 23.48 | 174 | zero-PWM reference |
@@ -189,10 +190,10 @@ the steady temperature in the row above. Both directions start from the same zer
 Both directions share the same zero-PWM measurement (174 s at PWM 0).
 
 The waits were set by watching the strip chart until the steady-state rule was met,
-not by a fixed timer, so they vary from 370 s to 1400 s. The 1400 s wait at HEAT 24 was
-longer because the temperature kept fluctuating outside ±0.1 °C, so the one-minute check had to
-be repeated. τ was not fitted separately for each
-step. Every step met the rule (about 3 τ plus a final minute with no drift beyond the noise)
+not by a fixed timer, so they vary from 370 s to 725 s. At HEAT 24 the first attempt kept
+fluctuating outside ±0.1 °C even after 1400 s, so that step was retested; the retest reached
+steady state in about 530 s, and its value is the one in the table. τ was not fitted separately
+for each step. Every step met the rule (about 3 τ plus a final minute with no drift beyond the noise)
 within its recorded wait, so the shortest waits (370–372 s) put an upper limit on τ:
 3 τ + 60 s ≤ 370 s gives τ ≲ 100 s. To get τ directly, run
 `steady_state_analysis.py` on a saved run CSV.
