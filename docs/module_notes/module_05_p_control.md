@@ -144,6 +144,60 @@ $T_{\mathrm{amb}}$ = ____ °C before the first run.
 
    In short: the system may become unstable or oscillatory instead of settling smoothly.
 
+## Part 1: Controller check (TEC power supply OFF)
+
+Before the TEC is driven, check that the sketch and GUI do what the handout
+asks. Keep the **TEC power supply off**: the Arduino and H-bridge logic still
+receive and apply every command, but no current flows through the TEC.
+
+Programs: `arduino/module5_p_control/module5_p_control.ino` and
+`python/module5_p_control_gui.py` (with `python/module5_common.py`).
+
+**1. Start-up (record the lines the GUI terminal prints)**
+
+| Check | Expected | Observed |
+| --- | --- | --- |
+| Banner | `Module 5 serial-command TEC control (P control runs in Python)` | ____ |
+| Software limit line | `SAFETY: software temperature limit (C): 60.00` | ____ |
+| Timeout line | `SAFETY: command timeout (s): 3.0` | ____ |
+| First temperature | close to room temperature, about 1 line per second | ____ °C |
+| Arduino PWM at start | 0 | ____ |
+
+**2. Control-law calculation by hand.** Start P control. For two lines from the
+terminal, check $e = T_{\mathrm{set}} - T$, $u = K_p e$, and the PWM and direction
+that were sent. Each line looks like
+`T = 23.50 C, Tset = 30.00 C, e = +6.50 C, u = +13.00, sent PWM 13 HEAT`.
+
+| Case | $T_{\mathrm{set}}$ (°C) | $K_p$ (PWM/°C) | $T$ (°C) | $e$ by hand | $u$ by hand | Expected command | Printed command | OK? |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| Heat ($e > 0$) | 30 | 2 | ____ | ____ | ____ | PWM round(\|u\|), HEAT | ____ | ☐ |
+| Cool ($e < 0$) | 18 | 2 | ____ | ____ | ____ | PWM round(\|u\|), COOL | ____ | ☐ |
+| Clamp | 30 | 100 | ____ | ____ | ____ | PWM 255, HEAT, `SATURATED` | ____ | ☐ |
+
+Also check:
+- the PWM trace is red for HEAT and blue for COOL;
+- the Arduino-reported PWM on the next line equals the PWM that was sent.
+
+**3. Stop and safety behaviour**
+
+| Test | How | Expected | Observed |
+| --- | --- | --- | --- |
+| Stop button | press **Stop P control (PWM 0)** | terminal `SET PWM 0 DIR HEAT`, Arduino PWM 0, run CSV saved | ____ |
+| Kp and Tset locked | try to change Kp during a run | boxes greyed out | ____ |
+| Command timeout | manual PWM 30 HEAT, then close the GUI (or unplug USB) | within about 3 s the Arduino sets PWM to 0 (reopen the serial monitor to see `SAFETY: no command for 3.0 s...`) | ____ |
+| Software limit (Module 4 procedure) | set `TEMP_LIMIT_C = 30.0`, upload; start P control (Tset 35, Kp 20); warm the thermistor with your fingers | `SAFETY SHUTDOWN ACTIVE`, `Safety shutdown: 1`, PWM 0, GUI prints `P control STOP (Arduino safety shutdown)`; after it cools, PWM stays 0 | ____ |
+| Restore the limit | set `TEMP_LIMIT_C = 60.0`, upload again | start-up line shows `60.00` | ____ |
+
+**4. Saved file.** Open the run CSV in `data/module_05/` and check:
+- the header has 13 columns, ending in `control_on`;
+- the first rows have `control_on = 0` (baseline before Start);
+- then the rows have `control_on = 1`.
+
+Part 1 test files (not measurements): ____
+
+Exact lines that calculate $e$ and $u$: `python/module5_p_control_gui.py`
+lines 95–96 (see the Files table). Be ready to point to them.
+
 ## Part 2: Sign test at low gain
 
 "Small" gain means small dimensionless loop gain $L = K_p\lvert\chi_T\rvert \ll 1$,
