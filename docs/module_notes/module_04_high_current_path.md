@@ -38,7 +38,7 @@ Dotted lines (`┊ ┈`) are low-current logic wiring and are not part of the hi
             │  [spade]   │            │
             │  THERMAL   │  normally closed,
             │  SWITCH    │  in SERIES with TEC,
-            │  (NC)      │  opens at ≈ 65 °C (Module 3 record)
+            │  (NC)      │  opens at ≈ 70 °C
             │  [spade]   │            │
             └─────┬──────┘            │
                   │ 18 AWG            │
@@ -60,15 +60,15 @@ matter what the Arduino commands.
 
 | Item | Value / what to show | Verified today? |
 | --- | --- | --- |
-| Wire gauge | 18 AWG stranded Cu on all 5 high-current wires: V+→B+, V−→B−, M+→switch, switch→TEC+, TEC−→M− (the two switch wires end in the spade crimps) | ☐ |
-| Supply polarity | V+ → B+, V− → B− | ☐ |
-| TEC polarity | M+ → (switch) → TEC+; TEC− → M− | ☐ |
-| Spade crimps | Both female spades on the thermal switch are secure (tug test) | ☐ |
-| Thermal-switch continuity | Multimeter beeps / reads ≈ 0 Ω across the closed switch | ☐ |
-| Thermal-switch placement | In series in the M+ → TEC+ leg, nothing bypasses it; mounted at: ________ | ☐ |
-| Supply settings | 12 V, current limit 10 A (check the label on the side of the supply) | ☐ |
-| H-bridge outputs checked with TEC power off (Module 3) | Pins 9/10 checked with the scope, TEC power off | ☐ |
-| Logic ground | Arduino GND shared with H-bridge logic ground | ☐ |
+| Wire gauge | 18 AWG stranded Cu on all 5 high-current wires: V+→B+, V−→B−, M+→switch, switch→TEC+, TEC−→M− (the two switch wires end in the spade crimps) | ☑ |
+| Supply polarity | V+ → B+, V− → B− | ☑ |
+| TEC polarity | M+ → (switch) → TEC+; TEC− → M− | ☑ |
+| Spade crimps | Both female spades on the thermal switch are secure (tug test) | ☑ |
+| Thermal-switch continuity | Multimeter beeps / reads ≈ 0 Ω across the closed switch | ☑ |
+| Thermal-switch placement | In series in the M+ → TEC+ leg, nothing bypasses it | ☑ |
+| Supply settings | 12 V, current limit 10 A (check the label on the side of the supply) | ☑ |
+| H-bridge outputs checked with TEC power off (Module 3) | Pins 9/10 checked with the scope, TEC power off | ☑ |
+| Logic ground | Arduino GND shared with H-bridge logic ground | ☑ |
 | Direction mapping | Heating = PWM on pin 9 ; Cooling = PWM on pin 10 (confirmed in the TEC start-up test) | ☑ |
 
 ## Module 4 changes from Module 3
@@ -254,13 +254,13 @@ LPWM is held LOW during heating anyway. Together they explain why the cooling di
 most. After both wires were reseated, the cooling response was stable and the measurements were
 repeated. The fault was located with this wiggle test, not confirmed with an oscilloscope.
 
-## Things to resolve before sign-off
+## Resolved items
 
-1. **Thermal-switch rating mismatch.** The Module 3 notes say the switch cuts off at
-   **65 °C**. The Module 4 handout says it opens near **70 °C**. Read the rating
-   stamped on the switch and write down the real value. Either way it is above the
-   60 °C software limit, so the order of protection still holds: software limit
-   (60 °C), then thermal switch.
+1. **Thermal-switch rating: resolved.** The Module 3 notes said 65 °C; the hardware thermal
+   switch opens near **70 °C**, as the Module 4 handout states. Two independent protection
+   levels: the software limit in the Arduino sketch shuts off both H-bridge PWM outputs above
+   **60 °C**, and if the software fails, the normally closed thermal switch in series with the
+   TEC opens near **70 °C** and cuts TEC current regardless of the Arduino.
 2. **Direction mapping: resolved.** The Module 3 notes say HEAT = PWM on pin 10, but the
    sketch uses `HEAT_ACTIVE_PIN = 9` and `COOL_ACTIVE_PIN = 10`. The Module 4 start-up test
    confirmed the sketch: the PWM trace is red while heating and blue while cooling. The
